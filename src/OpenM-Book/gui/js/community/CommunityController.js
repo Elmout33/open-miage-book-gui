@@ -47,6 +47,8 @@ OpenM_BookController.community.Page = function(community) {
     this.gui.actions = this.actions.gui;
     this.usersNotValid = new OpenM_BookController.community.UsersNotValid(community);
     this.gui.usersNotValid = this.usersNotValid.gui;
+    this.banned = new OpenM_BookController.community.Banned(community);
+    this.gui.banned = this.banned.gui;
 };
 
 OpenM_BookController.community.Page.prototype.display = function(enabled) {
@@ -59,16 +61,16 @@ OpenM_BookController.community.Tree = function(community) {
     this.ancestors = new Array();
     var ancestors = this.community.getAncestors();
 
-    var commintyInTree;
+    var communityInTree;
     for (var i in ancestors) {
-        commintyInTree = new OpenM_BookController.community.InTree(ancestors[i]);
-        this.ancestors[ancestors[i].id] = commintyInTree;
-        this.gui.communities.push(commintyInTree.gui);
+        communityInTree = OpenM_BookController.community.InTree.from(ancestors[i]);
+        this.ancestors[ancestors[i].id] = communityInTree;
+        this.gui.communities.push(communityInTree.gui);
     }
 
-    commintyInTree = new OpenM_BookController.community.InTree(this.community, false);
-    this.ancestors[this.community.id] = commintyInTree;
-    this.gui.communities.push(commintyInTree.gui);
+    communityInTree = OpenM_BookController.community.InTree.from(this.community, false);
+    this.ancestors[this.community.id] = communityInTree;
+    this.gui.communities.push(communityInTree.gui);
 };
 
 OpenM_BookController.community.InTree = function(community, active) {
@@ -92,6 +94,25 @@ OpenM_BookController.community.InTree = function(community, active) {
     }
 };
 
+OpenM_BookController.community.InTree.all_active = new Array();
+OpenM_BookController.community.InTree.all_not_active = new Array();
+OpenM_BookController.community.InTree.from = function(community, active) {
+    if (active !== false) {
+        if (OpenM_BookController.community.InTree.all_active[community.id] !== undefined)
+            return OpenM_BookController.community.InTree.all_active[community.id];
+    } else {
+        if (OpenM_BookController.community.InTree.all_not_active[community.id] !== undefined)
+            return OpenM_BookController.community.InTree.all_not_active[community.id];
+    }
+
+    var inTree = new OpenM_BookController.community.InTree(community, active);
+    if (active !== false)
+        OpenM_BookController.community.InTree.all_active[community.id] = inTree;
+    else
+        OpenM_BookController.community.InTree.all_not_active[community.id] = inTree;
+    return inTree;
+};
+
 OpenM_BookController.community.Childs = function(community) {
     this.community = community;
     this.communities = new Array();
@@ -107,22 +128,23 @@ OpenM_BookController.community.Childs = function(community) {
 };
 
 OpenM_BookController.community.Childs.prototype.updateChilds = function() {
-    var commintyChild;
-    var communityChildControllers = new Array();
-    var communityChildGuis = new Array();
+    var c;
+    var communitiesTemp = new Array();
     for (var i in this.community.childs) {
-        var child = this.community.childs[i];
-        if (this.communities[this.community.childs[i].id] === undefined) {
-            commintyChild = new OpenM_BookController.community.Child(child);
-            communityChildControllers[this.community.childs[i].id] = commintyChild;
-            communityChildGuis.push(commintyChild.gui);
-        } else {
-            communityChildControllers[this.community.childs[i].id] = this.communities[this.community.childs[i].id];
-            communityChildGuis.push(this.communities[this.community.childs[i].id].gui);
+        var communityChild = this.community.childs[i];
+        if (this.communities[communityChild.id] === undefined) {
+            c = OpenM_BookController.community.Child.from(communityChild);
+            this.gui.communities[communityChild.id] = c.gui;
+            this.communities[communityChild.id] = c;
+        }
+        communitiesTemp[communityChild.id] = communityChild;
+    }
+    for (var i in this.communities) {
+        if (communitiesTemp[i] === undefined) {
+            this.gui.communities.splice(i, 1);
+            this.communities.splice(i, 1);
         }
     }
-    this.communities = communityChildControllers;
-    this.gui.communities = communityChildGuis;
     this.gui.content();
 };
 
@@ -138,6 +160,16 @@ OpenM_BookController.community.Child = function(community) {
     this.gui.click = function() {
         OpenM_BookController.commons.URL.clickToCommunity(controller.community);
     };
+};
+
+OpenM_BookController.community.Child.all = new Array();
+OpenM_BookController.community.Child.from = function(community) {
+    if (OpenM_BookController.community.Child.all[community.id] !== undefined)
+        return OpenM_BookController.community.Child.all[community.id];
+
+    var child = new OpenM_BookController.community.Child(community);
+    OpenM_BookController.community.Child.all[community.id] = child;
+    return child;
 };
 
 OpenM_BookController.community.Users = function(community) {
@@ -159,7 +191,7 @@ OpenM_BookController.community.Users.prototype.updateUsers = function() {
     this.users = new Array();
     this.gui.users = new Array();
     for (var i in this.community.users) {
-        user = new OpenM_BookController.community.User(this.community.users[i]);
+        user = OpenM_BookController.community.User.from(this.community.users[i]);
         this.users[this.community.users[i].id] = user;
         this.gui.users.push(user.gui);
     }
@@ -169,10 +201,20 @@ OpenM_BookController.community.Users.prototype.updateUsers = function() {
 OpenM_BookController.community.User = function(user) {
     this.user = user;
     this.gui = new OpenM_BookGUI.community.User(this.user.id, this.user.name);
-    var controller = this;
-    this.gui.click = function() {
-        OpenM_BookController.commons.URL.clickToUser(controller.user);
-    };
+    this.buttonDisplayProfil = new OpenM_BookController.community.button.DisplayProfile(this.user);
+    this.gui.buttonDisplayProfil = this.buttonDisplayProfil.gui;
+    this.imageProfile = new OpenM_BookController.community.image.Profile(this.user);
+    this.gui.imageProfile = this.imageProfile.gui;
+};
+
+OpenM_BookController.community.User.all = new Array();
+OpenM_BookController.community.User.from = function(user) {
+    if (OpenM_BookController.community.User.all[user.id] !== undefined)
+        return OpenM_BookController.community.User.all[user.id];
+
+    var u = new OpenM_BookController.community.User(user);
+    OpenM_BookController.community.User.all[user.id] = u;
+    return u;
 };
 
 OpenM_BookController.community.UsersNotValid = function(community) {
@@ -180,9 +222,7 @@ OpenM_BookController.community.UsersNotValid = function(community) {
     this.users = new Array();
     this.gui = new OpenM_BookGUI.community.UsersNotValid(this.community.id);
 
-
     var controller = this;
-
     this.community.addUpdateUsersNotValidCallBack(function() {
         controller.updateUsers();
     });
@@ -197,7 +237,8 @@ OpenM_BookController.community.UsersNotValid.prototype.updateUsers = function() 
     for (var i in this.community.usersNotValidTree) {
         user = OpenM_BookDAO.user.DAO.get(i, false, false, false);
         for (var j in this.community.usersNotValidTree[i]) {
-            userController = new OpenM_BookController.community.UserNotValid(user, this.community.usersNotValidTree[i][j]);
+            userController = OpenM_BookController.community.UserNotValid.from(user,
+                    this.community.usersNotValidTree[i][j].community, this.community.usersNotValidTree[i][j].isAlreadyAcceptedByUser);
             this.users.push(userController);
             this.gui.users.push(userController.gui);
         }
@@ -205,34 +246,85 @@ OpenM_BookController.community.UsersNotValid.prototype.updateUsers = function() 
     this.gui.content();
 };
 
-OpenM_BookController.community.UserNotValid = function(user, community) {
+OpenM_BookController.community.UserNotValid = function(user, community, isAlreadyAcceptedByUser) {
     this.user = user;
     this.community = community;
+    if (OpenM_BookDAO.user.DAO.me.isAdmin || this.community.userIsModerator)
+        this.isAlreadyAccepted = false;
+    else
+        this.isAlreadyAccepted = (OpenM_BookDAO.user.DAO.me === this.user) ? true : isAlreadyAcceptedByUser;
     this.gui = new OpenM_BookGUI.community.UserNotValid(this.user.id, this.user.name, this.community.name);
-    this.buttonValidate = new OpenM_BookController.community.button.Validate(this.user, this.community);
+    this.buttonValidate = new OpenM_BookController.community.button.Validate(this.user, this.community, this.isAlreadyAccepted);
     this.gui.buttonValidate = this.buttonValidate.gui;
+    this.imageProfile = new OpenM_BookController.community.image.Profile(this.user);
+    this.gui.imageProfile = this.imageProfile.gui;
     this.buttonDisplayProfil = new OpenM_BookController.community.button.DisplayProfile(this.user);
     this.gui.buttonDisplayProfil = this.buttonDisplayProfil.gui;
+    this.buttonDisplayCommunity = new OpenM_BookController.community.button.DisplayCommunity(this.community);
+    this.gui.buttonDisplayCommunity = this.buttonDisplayCommunity.gui;
+};
+
+OpenM_BookController.community.UserNotValid.prototype.isAlreadyAcceptedByUser = function(enabled) {
+    this.isAlreadyAccepted = enabled;
+    this.gui.isAlreadyAccepted = enabled;
+};
+
+OpenM_BookController.community.UserNotValid.all = new Array();
+OpenM_BookController.community.UserNotValid.from = function(user, community, isAlreadyAcceptedByUser) {
+    if (OpenM_BookController.community.UserNotValid.all[user.id] !== undefined) {
+        if (OpenM_BookController.community.UserNotValid.all[user.id][community.id] !== undefined) {
+            var u = OpenM_BookController.community.UserNotValid.all[user.id][community.id];
+            u.isAlreadyAcceptedByUser(isAlreadyAcceptedByUser);
+            return u;
+        }
+    }
+    else
+        OpenM_BookController.community.UserNotValid.all[user.id] = new Array();
+
+    var u = new OpenM_BookController.community.UserNotValid(user, community, isAlreadyAcceptedByUser);
+    OpenM_BookController.community.UserNotValid.all[user.id][community.id] = u;
+    return u;
+};
+
+OpenM_BookController.community.Banned = function(community) {
+    this.community = community;
+    this.gui = new OpenM_BookGUI.community.Banned(this.community.name);
+    this.gui.banned = this.community.userIsBanned;
 
     var controller = this;
+    this.update = function() {
+        controller.gui.banned = controller.community.userIsBanned;
+        controller.gui.name = controller.community.name;
+        controller.gui.content();
+    };
 
-    this.gui.clickCommunity = function() {
-        OpenM_BookController.commons.URL.clickToCommunity(controller.community);
-    };
-    this.gui.clickUser = function() {
-        OpenM_BookController.commons.URL.clickToUser(controller.user);
-    };
+    this.community.addUpdateCallBack(this.update);
 };
 
 OpenM_BookController.community.button = {};
 
-OpenM_BookController.community.button.Validate = function(user, community) {
+OpenM_BookController.community.button.Validate = function(user, community, isAlreadyAcceptedByUser) {
     this.user = user;
     this.community = community;
+    this.isAlreadyAcceptedByUser = isAlreadyAcceptedByUser;
     this.gui = new OpenM_BookGUI.community.button.Validate();
+    this.gui.isAlreadyAcceptedByUser = this.isAlreadyAcceptedByUser;
+    this.popover = new OpenM_BookController.community.popover.Name(this.community);
+    this.popover.gui.text = 'Pourquoi ?';
+    this.gui.popover = this.popover.gui;
+
+    //le click
     var controller = this;
-    this.gui.click = function(e) {
-        alert(controller.user.name);
+    this.popover.gui.submit = function(e) {
+        var name = controller.popover.gui.getName();
+        if (name) {
+            controller.community.validateUser(controller.user, name);
+            controller.gui.a.popover('hide');
+            controller.gui.isAlreadyAcceptedByUser = true;
+            controller.gui.content();
+        } else
+            alert("Vous devez expliquer pourquoi en quelques mots");
+        e.preventDefault();
     };
 };
 
@@ -243,14 +335,58 @@ OpenM_BookController.community.button.DisplayProfile = function(user) {
     this.gui.click = function() {
         OpenM_BookController.commons.URL.clickToUser(controller.user);
     };
+    this.update = function() {
+        controller.gui.updateName(controller.user.name);
+    };
+    this.user.addUpdateCallBack(this.update);
+};
+
+OpenM_BookController.community.button.DisplayCommunity = function(community) {
+    this.community = community;
+    this.gui = new OpenM_BookGUI.community.button.DisplayCommunity(this.community.name);
+    var controller = this;
+    this.gui.click = function() {
+        OpenM_BookController.commons.URL.clickToCommunity(controller.community);
+    };
+    this.update = function() {
+        controller.gui.updateName(controller.community.name);
+    };
+    this.community.addUpdateCallBack(this.update);
+};
+
+OpenM_BookController.community.image = {};
+
+OpenM_BookController.community.image.Profile = function(user) {
+    this.user = user;
+    this.gui = new OpenM_BookGUI.community.image.Profile();
+    var controller = this;
+    this.gui.click = function() {
+        OpenM_BookController.commons.URL.clickToUser(controller.user);
+    };
+    this.update = function() {
+        controller.gui.content();
+    };
+    this.user.addUpdateCallBack(this.update);
+};
+
+OpenM_BookController.community.image.Profile.all = new Array();
+OpenM_BookController.community.image.Profile.from = function(user) {
+    if (OpenM_BookController.community.image.Profile.all[user.id] !== undefined)
+        return OpenM_BookController.community.image.Profile.all[user.id];
+
+    var u = new OpenM_BookController.community.image.Profile(user);
+    OpenM_BookController.community.image.Profile.all[user.id] = u;
+    return u;
 };
 
 OpenM_BookController.community.Actions = function(community) {
     this.community = community;
     this.register = null;
+    this.unRegister = null;
     this.add = null;
     this.rename = null;
-    this.deleteBt = null;
+    this.delete = null;
+    this.refresh = null;
     this.gui = new OpenM_BookGUI.community.Actions(this.community.id);
 
     var controller = this;
@@ -263,15 +399,21 @@ OpenM_BookController.community.Actions = function(community) {
 };
 
 OpenM_BookController.community.Actions.prototype.updateActions = function() {
-    this.buttons = new Array();
     this.gui.buttons = new Array();
 
     if (this.community.userCanRegister) {
-        this.register = new OpenM_BookController.community.button.Register(this.community);
-        this.gui.buttons.push(this.register.gui);
+        if (!this.community.userAlreadyRegistred) {
+            this.register = new OpenM_BookController.community.button.Register(this.community);
+            this.gui.buttons.push(this.register.gui);
+        } else {
+            this.unRegister = new OpenM_BookController.community.button.UnRegister(this.community);
+            this.gui.buttons.push(this.unRegister.gui);
+        }
     }
 
-    if (this.community.userCanAddSubCommunity) {
+    if (this.community.userCanAddSubCommunity
+            || (this.community.moderatorCanAddSubCommunity && this.community.userIsModerator)
+            || (this.community.adminCanAddSubCommunity && OpenM_BookDAO.user.DAO.me.isAdmin)) {
         this.add = new OpenM_BookController.community.button.Add(this.community);
         this.gui.buttons.push(this.add.gui);
     }
@@ -280,11 +422,14 @@ OpenM_BookController.community.Actions.prototype.updateActions = function() {
         this.rename = new OpenM_BookController.community.button.Rename(this.community);
         this.gui.buttons.push(this.rename.gui);
 
-        if (!this.community.cantBeRemoved) {
-            this.deleteBt = new OpenM_BookController.community.button.Delete(this.community);
-            this.gui.buttons.push(this.deleteBt.gui);
+        if (!this.community.cantBeRemoved && this.community.parent !== undefined) {
+            this.delete = new OpenM_BookController.community.button.Delete(this.community);
+            this.gui.buttons.push(this.delete.gui);
         }
     }
+
+    this.refresh = new OpenM_BookController.community.button.Refresh(this.community);
+    this.gui.buttons.push(this.refresh.gui);
 
     this.gui.content();
 };
@@ -299,9 +444,19 @@ OpenM_BookController.community.button.Register = function(community) {
     };
 };
 
+OpenM_BookController.community.button.UnRegister = function(community) {
+    this.community = community;
+    this.gui = new OpenM_BookGUI.community.button.UnRegister(this.community.id);
+    this.gui.active = this.community.userAlreadyRegistred;
+    var controller = this;
+    this.gui.click = function() {
+        controller.community.unRegisterMe();
+    };
+};
+
 OpenM_BookController.community.button.Add = function(community) {
     this.community = community;
-    this.gui = new OpenM_BookGUI.community.button.AddCommunity(this.community.id, this.community.name);
+    this.gui = new OpenM_BookGUI.community.button.AddCommunity(this.community.name);
     this.gui.active = this.community.userCanAddSubCommunity;
     this.popover = new OpenM_BookController.community.popover.Name(this.community);
     this.gui.popover = this.popover.gui;
@@ -319,12 +474,29 @@ OpenM_BookController.community.button.Add = function(community) {
     };
 };
 
+OpenM_BookController.community.button.Refresh = function(community) {
+    this.community = community;
+    this.gui = new OpenM_BookGUI.community.button.Refresh(this.community.name);
+
+    var controller = this;
+    this.gui.click = function() {
+        OpenM_BookController.community.Pages.communityPage(controller.community.id).display();
+    };
+
+    this.update = function() {
+        controller.gui.name = controller.community.name;
+        controller.gui.content();
+    };
+
+    this.community.addUpdateCallBack(this.update);
+};
+
 OpenM_BookController.community.popover = {};
 
 OpenM_BookController.community.popover.Name = function(community, value) {
     this.community = community;
     this.value = value;
-    this.gui = new OpenM_BookGUI.community.popover.Name(this.community.id, value);
+    this.gui = new OpenM_BookGUI.community.popover.Name(value);
 };
 
 OpenM_BookController.community.button.Rename = function(community) {
